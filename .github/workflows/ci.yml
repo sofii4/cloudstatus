@@ -95,6 +95,9 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
       - name: Extrair metadata da imagem
         id: meta
         uses: docker/metadata-action@v5

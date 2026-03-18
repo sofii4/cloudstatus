@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CloudStatus</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { darkMode: 'class' }
+    </script>
+    <style>
+        .dot-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: .4
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-950 text-gray-100 min-h-screen font-sans">
+
+    <!-- Header -->
+    <header class="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <span class="text-2xl">☁️</span>
+            <h1 class="text-xl font-bold tracking-tight">CloudStatus</h1>
+        </div>
+        <span id="last-updated" class="text-xs text-gray-500"></span>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-10">
+
+        <!-- Banner de status geral -->
+        <div id="global-banner"
+            class="rounded-xl px-6 py-4 mb-8 flex items-center gap-3 transition-all duration-500 bg-gray-800">
+            <span id="global-dot" class="w-3 h-3 rounded-full bg-gray-500 dot-pulse"></span>
+            <span id="global-text" class="font-semibold text-lg">Carregando...</span>
+        </div>
+
+        <!-- Grid de serviços -->
+        <div id="services-grid" class="grid gap-4 sm:grid-cols-2">
+            <!-- Cards injetados via JS -->
+        </div>
+
+        <!-- Estado vazio -->
+        <div id="empty-state" class="hidden text-center py-20 text-gray-600">
+            <p class="text-5xl mb-4">📡</p>
+            <p class="text-lg">Nenhum serviço monitorado ainda.</p>
+            <p class="text-sm mt-1">Adicione serviços pela área admin.</p>
+        </div>
+
+    </main>
+
+    <footer class="text-center text-xs text-gray-700 py-6">
+        CloudStatus — atualiza a cada 30s
+    </footer>
+
+    <script>
+        const API = '/api'
+
+        async function fetchStatus() {
+            try {
+                const res = await fetch(`${API}/status`)
+                const services = await res.json()
+                renderServices(services)
+                updateGlobalBanner(services)
+                document.getElementById('last-updated').textContent =
+                    'Atualizado: ' + new Date().toLocaleTimeString('pt-BR')
+            } catch (e) {
+                document.getElementById('global-text').textContent = 'Erro ao carregar dados'
+            }
+        }
+
+        function renderServices(services) {
+            const grid = document.getElementById('services-grid')
+            const empty = document.getElementById('empty-state')
+
+            if (!services.length) {
+                grid.innerHTML = ''
+                empty.classList.remove('hidden')
+                return
+            }
+
+            empty.classList.add('hidden')
+            grid.innerHTML = services.map(svc => {
+                const status = svc.current_status
+                const isUp = status?.is_up
+                const ms = status?.response_ms
+                const code = status?.status_code
+
+                const dotColor = isUp === undefined ? 'bg-gray-500' : isUp ? 'bg-emerald-400' : 'bg-red-500'
+                const cardBorder = isUp === undefined ? 'border-gray-700' : isUp ? 'border-emerald-800' : 'border-red-900'
+                const label = isUp === undefined ? 'Aguardando' : isUp ? 'Operacional' : 'Indisponível'
+                const labelColor = isUp === undefined ? 'text-gray-400' : isUp ? 'text-emerald-400' : 'text-red-400'
+
+                return `
+          <div class="bg-gray-900 border ${cardBorder} rounded-xl p-5 flex flex-col gap-3 transition-all duration-300">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full ${dotColor} ${isUp !== undefined && !isUp ? '' : 'dot-pulse'}"></span>
+                <span class="font-semibold text-sm">${escapeHtml(svc.name)}</span>
+              </div>
+              <span class="text-xs font-medium ${labelColor}">${label}</span>
+            </div>
+
+            <p class="text-xs text-gray-500 truncate">${escapeHtml(svc.url)}</p>
+
+            <div class="flex items-center gap-4 text-xs text-gray-400 pt-1 border-t border-gray-800">
+              <span>⏱ ${ms !== null && ms !== undefined ? ms + ' ms' : '—'}</span>
+              <span>HTTP ${code ?? '—'}</span>
+            </div>
+          </div>`
+            }).join('')
+        }
+
+        function updateGlobalBanner(services) {
+                const banner = document.getElementById('global-banner')
+                const dot = document.getElementById('global-dot')
+                const text = document.getElementById('global-text')
+
+                // Sem serviços cadastrados
+                if (!services.length) {
+                    dot.className = 'w-3 h-3 rounded-full bg-gray-500'
+                    text.textContent = 'Nenhum serviço cadastrado'
+                    return
+                }
+
+                const withData = services.filter(s => s.current_status !== null)
+
+                // Serviços cadastrados mas ainda sem dados do polling
+                if (!withData.length) {
+                    dot.className = 'w-3 h-3 rounded-full bg-yellow-400 dot-pulse'
+                    text.textContent = 'Aguardando primeiro ciclo de monitoramento...'
+                    return
+                }
+
+                const allUp = withData.every(s => s.current_status?.is_up)
+                const anyDown = withData.some(s => !s.current_status?.is_up)
+
+                if (allUp) {
+                    banner.className = 'rounded-xl px-6 py-4 mb-8 flex items-center gap-3 bg-emerald-950 border border-emerald-800'
+                    dot.className = 'w-3 h-3 rounded-full bg-emerald-400 dot-pulse'
+                    text.textContent = 'Todos os sistemas operacionais'
+                } else if (anyDown) {
+                    banner.className = 'rounded-xl px-6 py-4 mb-8 flex items-center gap-3 bg-red-950 border border-red-900'
+                    dot.className = 'w-3 h-3 rounded-full bg-red-500'
+                    text.textContent = 'Degradação detectada em um ou mais serviços'
+                }
+            }
+
+        function escapeHtml(str) {
+            return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+        }
+
+        // Inicia e agenda refresh
+        fetchStatus()
+        setInterval(fetchStatus, 30000)
+    </script>
+</body>
+
+</html>

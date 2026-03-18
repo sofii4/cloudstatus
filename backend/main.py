@@ -6,22 +6,22 @@ from app.core.scheduler import start_scheduler, scheduler
 from app.database import engine, Base
 from app.api import routes_health, routes_status, routes_admin
 
-# Log estruturado
+# Logger deve ser definido ANTES do lifespan
 logging.basicConfig(
     level=logging.INFO,
     format='{"time":"%(asctime)s","level":"%(levelname)s","msg":"%(message)s"}',
 )
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         logger.info("Banco de dados conectado com sucesso.")
     except Exception as e:
         logger.error(f"Falha ao conectar ao banco: {e}")
-        raise  # força o container a reiniciar em vez de travar
+        raise
     start_scheduler()
     yield
     scheduler.shutdown()

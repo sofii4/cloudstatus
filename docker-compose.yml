@@ -71,7 +71,7 @@ services:
 
   nginx:
     build:
-      context: ./nginx
+      context: .
       dockerfile: Dockerfile
     container_name: cloudstatus_nginx
     restart: unless-stopped

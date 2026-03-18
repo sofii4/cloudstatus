@@ -1,0 +1,57 @@
+name: CD — Deploy to Azure Container Apps
+
+on:
+  workflow_run:
+    workflows: ["CI — Build & Push to ACR"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Login na Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Obter SHA do commit que disparou o CI
+        id: sha
+        run: |
+          SHA=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-7)
+          echo "tag=sha-$SHA" >> $GITHUB_OUTPUT
+
+      - name: Deploy — Backend
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          resourceGroup: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          containerAppName: cloudstatus-backend
+          imageToDeploy: ${{ secrets.ACR_LOGIN_SERVER }}/cloudstatus-backend:${{ steps.sha.outputs.tag }}
+          environmentVariables: |
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+            ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}
+
+      - name: Deploy — Frontend
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          resourceGroup: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          containerAppName: cloudstatus-frontend
+          imageToDeploy: ${{ secrets.ACR_LOGIN_SERVER }}/cloudstatus-frontend:${{ steps.sha.outputs.tag }}
+
+      - name: Deploy — Nginx
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          resourceGroup: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          containerAppName: cloudstatus-nginx
+          imageToDeploy: ${{ secrets.ACR_LOGIN_SERVER }}/cloudstatus-nginx:${{ steps.sha.outputs.tag }}
+
+      - name: URL de produção
+        run: |
+          URL=$(az containerapp show \
+            --name cloudstatus-nginx \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          echo "✅ Deploy concluído: https://$URL"

@@ -101,10 +101,24 @@
             }
         }
 
-        document.getElementById('btn-logout').addEventListener('click', () => {
-            sessionStorage.removeItem('cs_creds')
-            location.reload()
-        })
+        document.getElementById('btn-logout').addEventListener('click', async () => {
+                sessionStorage.removeItem('cs_creds')
+
+                // Força o Chrome a limpar o cache de Basic Auth
+                // enviando credenciais inválidas deliberadamente
+                try {
+                    await fetch('/api/admin/services', {
+                        headers: {
+                            'Authorization': 'Basic ' + btoa('logout:logout')
+                        }
+                    })
+                } catch (e) {
+                    // ignora o erro — só queremos invalidar o cache
+                }
+
+                // Pequeno delay para o browser processar o 401
+                setTimeout(() => location.reload(), 200)
+            })
 
         // ─── Toast ───────────────────────────────────────────────────
         function showToast(msg, type = 'success') {

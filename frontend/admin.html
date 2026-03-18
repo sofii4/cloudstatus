@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CloudStatus — Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class' }</script>
+</head>
+
+<body class="bg-gray-950 text-gray-100 min-h-screen font-sans">
+
+    <!-- Header -->
+    <header class="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <span class="text-2xl">☁️</span>
+            <h1 class="text-xl font-bold tracking-tight">CloudStatus <span
+                    class="text-gray-500 font-normal text-sm ml-1">/ Admin</span></h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <a href="/" class="text-xs text-gray-400 hover:text-white transition-colors">← Painel público</a>
+            <button id="btn-logout" class="text-xs text-red-400 hover:text-red-300 transition-colors">Sair</button>
+        </div>
+    </header>
+
+    <main class="max-w-3xl mx-auto px-4 py-10">
+
+        <!-- Formulário de adição -->
+        <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 mb-8">
+            <h2 class="text-sm font-semibold text-gray-300 mb-4 uppercase tracking-wider">Adicionar Serviço</h2>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <input id="input-name" type="text" placeholder="Nome do serviço"
+                    class="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors" />
+                <input id="input-url" type="url" placeholder="https://exemplo.com"
+                    class="flex-[2] bg-gray-800 border border-gray-600 rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors" />
+                <button id="btn-add"
+                    class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
+                    Adicionar
+                </button>
+            </div>
+            <p id="form-error" class="hidden text-xs text-red-400 mt-2"></p>
+        </div>
+
+        <!-- Feedback -->
+        <div id="toast"
+            class="hidden fixed bottom-6 right-6 bg-gray-800 border border-gray-600 rounded-xl px-5 py-3 text-sm shadow-xl transition-all z-50">
+        </div>
+
+        <!-- Lista de serviços -->
+        <div>
+            <h2 class="text-sm font-semibold text-gray-300 mb-4 uppercase tracking-wider">Serviços Monitorados</h2>
+            <div id="services-list" class="flex flex-col gap-3">
+                <div class="text-center py-10 text-gray-600">
+                    <p class="text-3xl mb-2">⏳</p>
+                    <p class="text-sm">Carregando...</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Modal de confirmação de exclusão -->
+    <div id="modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-40 px-4">
+        <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-sm">
+            <h3 class="font-semibold mb-2">Remover serviço</h3>
+            <p class="text-sm text-gray-400 mb-6">Tem certeza que deseja remover <span id="modal-service-name"
+                    class="text-white font-medium"></span>? O histórico de eventos também será apagado.</p>
+            <div class="flex gap-3 justify-end">
+                <button id="modal-cancel"
+                    class="text-sm text-gray-400 hover:text-white px-4 py-2 rounded-lg transition-colors">Cancelar</button>
+                <button id="modal-confirm"
+                    class="text-sm bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg transition-colors">Remover</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = '/api/admin'
+        let credentials = ''
+        let deleteTarget = null
+
+        // ─── Auth ────────────────────────────────────────────────────
+        function getCredentials() {
+            const stored = sessionStorage.getItem('cs_creds')
+            if (stored) return stored
+
+            const user = prompt('Usuário admin:')
+            const pass = prompt('Senha:')
+            if (!user || !pass) return null
+
+            const encoded = btoa(`${user}:${pass}`)
+            sessionStorage.setItem('cs_creds', encoded)
+            return encoded
+        }
+
+        function authHeaders() {
+            return {
+                'Authorization': `Basic ${credentials}`,
+                'Content-Type': 'application/json'
+            }
+        }
+
+        document.getElementById('btn-logout').addEventListener('click', () => {
+            sessionStorage.removeItem('cs_creds')
+            location.reload()
+        })
+
+        // ─── Toast ───────────────────────────────────────────────────
+        function showToast(msg, type = 'success') {
+            const toast = document.getElementById('toast')
+            toast.textContent = msg
+            toast.className = `fixed bottom-6 right-6 rounded-xl px-5 py-3 text-sm shadow-xl z-50 border
+        ${type === 'success'
+                    ? 'bg-emerald-950 border-emerald-700 text-emerald-300'
+                    : 'bg-red-950 border-red-800 text-red-300'}`
+            toast.classList.remove('hidden')
+            setTimeout(() => toast.classList.add('hidden'), 3000)
+        }
+
+        // ─── Listar serviços ─────────────────────────────────────────
+        async function loadServices() {
+            try {
+                const res = await fetch(`${API}/services`, {
+                    headers: authHeaders()
+                })
+
+                if (res.status === 401) {
+                    sessionStorage.removeItem('cs_creds')
+                    showToast('Credenciais inválidas. Recarregando...', 'error')
+                    setTimeout(() => location.reload(), 1500)
+                    return
+                }
+
+                const services = await res.json()
+                renderList(services)
+            } catch (e) {
+                document.getElementById('services-list').innerHTML = `
+          <div class="text-center py-10 text-red-500 text-sm">Erro ao carregar serviços.</div>`
+            }
+        }
+
+        function renderList(services) {
+            const list = document.getElementById('services-list')
+
+            if (!services.length) {
+                list.innerHTML = `
+          <div class="text-center py-10 text-gray-600">
+            <p class="text-3xl mb-2">📡</p>
+            <p class="text-sm">Nenhum serviço cadastrado ainda.</p>
+          </div>`
+                return
+            }
+
+            list.innerHTML = services.map(svc => `
+        <div class="bg-gray-900 border border-gray-700 hover:border-gray-500 rounded-xl px-5 py-4 flex items-center justify-between gap-4 transition-colors group">
+          <div class="min-w-0">
+            <p class="font-medium text-sm truncate">${escapeHtml(svc.name)}</p>
+            <p class="text-xs text-gray-500 truncate mt-0.5">${escapeHtml(svc.url)}</p>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <span class="text-xs px-2 py-1 rounded-md ${svc.is_active ? 'bg-emerald-900 text-emerald-400' : 'bg-gray-800 text-gray-500'}">
+              ${svc.is_active ? 'Ativo' : 'Inativo'}
+            </span>
+            <button
+              onclick="confirmDelete(${svc.id}, '${escapeHtml(svc.name)}')"
+              class="text-xs text-gray-600 hover:text-red-400 transition-colors px-2 py-1 rounded-md hover:bg-red-950"
+              title="Remover"
+            >✕</button>
+          </div>
+        </div>`
+            ).join('')
+        }
+
+        // ─── Adicionar serviço ───────────────────────────────────────
+        document.getElementById('btn-add').addEventListener('click', async () => {
+            const name = document.getElementById('input-name').value.trim()
+            const url = document.getElementById('input-url').value.trim()
+            const err = document.getElementById('form-error')
+
+            if (!name || !url) {
+                err.textContent = 'Preencha o nome e a URL.'
+                err.classList.remove('hidden')
+                return
+            }
+
+            err.classList.add('hidden')
+            document.getElementById('btn-add').disabled = true
+
+            try {
+                const res = await fetch(
+                    `${API}/services?name=${encodeURIComponent(name)}&url=${encodeURIComponent(url)}`,
+                    { method: 'POST', headers: authHeaders() }
+                )
+
+                if (res.status === 201) {
+                    document.getElementById('input-name').value = ''
+                    document.getElementById('input-url').value = ''
+                    showToast(`✓ "${name}" adicionado com sucesso`)
+                    await loadServices()
+                } else {
+                    showToast('Erro ao adicionar serviço.', 'error')
+                }
+            } catch (e) {
+                showToast('Erro de conexão.', 'error')
+            } finally {
+                document.getElementById('btn-add').disabled = false
+            }
+        })
+
+        // Enter no campo URL dispara o botão
+        document.getElementById('input-url').addEventListener('keydown', e => {
+            if (e.key === 'Enter') document.getElementById('btn-add').click()
+        })
+
+        // ─── Remover serviço ─────────────────────────────────────────
+        function confirmDelete(id, name) {
+            deleteTarget = id
+            document.getElementById('modal-service-name').textContent = name
+            document.getElementById('modal').classList.remove('hidden')
+        }
+
+        document.getElementById('modal-cancel').addEventListener('click', () => {
+            document.getElementById('modal').classList.add('hidden')
+            deleteTarget = null
+        })
+
+        document.getElementById('modal-confirm').addEventListener('click', async () => {
+            if (!deleteTarget) return
+            document.getElementById('modal').classList.add('hidden')
+
+            try {
+                const res = await fetch(`${API}/services/${deleteTarget}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                })
+
+                if (res.status === 204) {
+                    showToast('Serviço removido.')
+                    await loadServices()
+                } else {
+                    showToast('Erro ao remover.', 'error')
+                }
+            } catch (e) {
+                showToast('Erro de conexão.', 'error')
+            } finally {
+                deleteTarget = null
+            }
+        })
+
+        // ─── Utils ───────────────────────────────────────────────────
+        function escapeHtml(str) {
+            return String(str).replace(/[&<>"']/g, c =>
+                ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+        }
+
+        // ─── Init ────────────────────────────────────────────────────
+        credentials = getCredentials()
+        if (credentials) loadServices()
+    </script>
+</body>
+
+</html>

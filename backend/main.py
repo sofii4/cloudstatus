@@ -15,11 +15,15 @@ logging.basicConfig(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Banco de dados conectado com sucesso.")
+    except Exception as e:
+        logger.error(f"Falha ao conectar ao banco: {e}")
+        raise  # força o container a reiniciar em vez de travar
     start_scheduler()
     yield
-    # Shutdown
     scheduler.shutdown()
 
 app = FastAPI(title="CloudStatus API", lifespan=lifespan)

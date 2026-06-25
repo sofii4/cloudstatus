@@ -1,277 +1,415 @@
 <!DOCTYPE html>
 <html lang="pt-BR" class="dark">
-
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CloudStatus — Admin</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>tailwind.config = { darkMode: 'class' }</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CloudStatus — Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
 </head>
-
 <body class="bg-gray-950 text-gray-100 min-h-screen font-sans">
 
-    <!-- Header -->
-    <header class="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-            <span class="text-2xl">☁️</span>
-            <h1 class="text-xl font-bold tracking-tight">CloudStatus <span
-                    class="text-gray-500 font-normal text-sm ml-1">/ Admin</span></h1>
-        </div>
-        <div class="flex items-center gap-4">
-            <a href="/" class="text-xs text-gray-400 hover:text-white transition-colors">← Painel público</a>
-            <button id="btn-logout" class="text-xs text-red-400 hover:text-red-300 transition-colors">Sair</button>
-        </div>
-    </header>
+  <header class="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <span class="text-2xl">☁️</span>
+      <h1 class="text-xl font-bold tracking-tight">CloudStatus <span class="text-gray-500 font-normal text-sm ml-1">/ Admin</span></h1>
+    </div>
+    <div class="flex items-center gap-4">
+      <a href="/" class="text-xs text-gray-400 hover:text-white transition-colors">← Painel público</a>
+      <button id="btn-logout" class="text-xs text-red-400 hover:text-red-300 transition-colors">Sair</button>
+    </div>
+  </header>
 
-    <main class="max-w-3xl mx-auto px-4 py-10">
+  <main class="max-w-4xl mx-auto px-4 py-10">
 
-        <!-- Formulário de adição -->
-        <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 mb-8">
-            <h2 class="text-sm font-semibold text-gray-300 mb-4 uppercase tracking-wider">Adicionar Serviço</h2>
-            <div class="flex flex-col sm:flex-row gap-3">
-                <input id="input-name" type="text" placeholder="Nome do serviço"
-                    class="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors" />
-                <input id="input-url" type="url" placeholder="https://exemplo.com"
-                    class="flex-[2] bg-gray-800 border border-gray-600 rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors" />
-                <button id="btn-add"
-                    class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
-                    Adicionar
-                </button>
-            </div>
-            <p id="form-error" class="hidden text-xs text-red-400 mt-2"></p>
-        </div>
-
-        <!-- Feedback -->
-        <div id="toast"
-            class="hidden fixed bottom-6 right-6 bg-gray-800 border border-gray-600 rounded-xl px-5 py-3 text-sm shadow-xl transition-all z-50">
-        </div>
-
-        <!-- Lista de serviços -->
-        <div>
-            <h2 class="text-sm font-semibold text-gray-300 mb-4 uppercase tracking-wider">Serviços Monitorados</h2>
-            <div id="services-list" class="flex flex-col gap-3">
-                <div class="text-center py-10 text-gray-600">
-                    <p class="text-3xl mb-2">⏳</p>
-                    <p class="text-sm">Carregando...</p>
-                </div>
-            </div>
-        </div>
-
-    </main>
-
-    <!-- Modal de confirmação de exclusão -->
-    <div id="modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-40 px-4">
-        <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-sm">
-            <h3 class="font-semibold mb-2">Remover serviço</h3>
-            <p class="text-sm text-gray-400 mb-6">Tem certeza que deseja remover <span id="modal-service-name"
-                    class="text-white font-medium"></span>? O histórico de eventos também será apagado.</p>
-            <div class="flex gap-3 justify-end">
-                <button id="modal-cancel"
-                    class="text-sm text-gray-400 hover:text-white px-4 py-2 rounded-lg transition-colors">Cancelar</button>
-                <button id="modal-confirm"
-                    class="text-sm bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg transition-colors">Remover</button>
-            </div>
-        </div>
+    <!-- Tabs -->
+    <div class="flex gap-1 mb-8 border-b border-gray-800">
+      <button onclick="showTab('services')" id="tab-services"
+        class="tab-btn px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors">Serviços</button>
+      <button onclick="showTab('webhooks')" id="tab-webhooks"
+        class="tab-btn px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors">Webhooks</button>
     </div>
 
-    <script>
-        const API = '/api/admin'
-        let credentials = ''
-        let deleteTarget = null
+    <!-- ── TAB: Serviços ───────────────────────────────────────────── -->
+    <div id="tab-content-services">
 
-        // ─── Auth ────────────────────────────────────────────────────
-        function getCredentials() {
-            const stored = sessionStorage.getItem('cs_creds')
-            if (stored) return stored
-
-            const user = prompt('Usuário admin:')
-            const pass = prompt('Senha:')
-            if (!user || !pass) return null
-
-            const encoded = btoa(`${user}:${pass}`)
-            sessionStorage.setItem('cs_creds', encoded)
-            return encoded
-        }
-
-        function authHeaders() {
-            return {
-                'Authorization': `Basic ${credentials}`,
-                'Content-Type': 'application/json'
-            }
-        }
-
-        document.getElementById('btn-logout').addEventListener('click', async () => {
-                sessionStorage.removeItem('cs_creds')
-
-                // Força o Chrome a limpar o cache de Basic Auth
-                // enviando credenciais inválidas deliberadamente
-                try {
-                    await fetch('/api/admin/services', {
-                        headers: {
-                            'Authorization': 'Basic ' + btoa('logout:logout')
-                        }
-                    })
-                } catch (e) {
-                    // ignora o erro — só queremos invalidar o cache
-                }
-
-                // Pequeno delay para o browser processar o 401
-                setTimeout(() => location.reload(), 200)
-            })
-
-        // ─── Toast ───────────────────────────────────────────────────
-        function showToast(msg, type = 'success') {
-            const toast = document.getElementById('toast')
-            toast.textContent = msg
-            toast.className = `fixed bottom-6 right-6 rounded-xl px-5 py-3 text-sm shadow-xl z-50 border
-        ${type === 'success'
-                    ? 'bg-emerald-950 border-emerald-700 text-emerald-300'
-                    : 'bg-red-950 border-red-800 text-red-300'}`
-            toast.classList.remove('hidden')
-            setTimeout(() => toast.classList.add('hidden'), 3000)
-        }
-
-        // ─── Listar serviços ─────────────────────────────────────────
-        async function loadServices() {
-            try {
-                const res = await fetch(`${API}/services`, {
-                    headers: authHeaders()
-                })
-
-                if (res.status === 401) {
-                    sessionStorage.removeItem('cs_creds')
-                    showToast('Credenciais inválidas. Recarregando...', 'error')
-                    setTimeout(() => location.reload(), 1500)
-                    return
-                }
-
-                const services = await res.json()
-                renderList(services)
-            } catch (e) {
-                document.getElementById('services-list').innerHTML = `
-          <div class="text-center py-10 text-red-500 text-sm">Erro ao carregar serviços.</div>`
-            }
-        }
-
-        function renderList(services) {
-            const list = document.getElementById('services-list')
-
-            if (!services.length) {
-                list.innerHTML = `
-          <div class="text-center py-10 text-gray-600">
-            <p class="text-3xl mb-2">📡</p>
-            <p class="text-sm">Nenhum serviço cadastrado ainda.</p>
-          </div>`
-                return
-            }
-
-            list.innerHTML = services.map(svc => `
-        <div class="bg-gray-900 border border-gray-700 hover:border-gray-500 rounded-xl px-5 py-4 flex items-center justify-between gap-4 transition-colors group">
-          <div class="min-w-0">
-            <p class="font-medium text-sm truncate">${escapeHtml(svc.name)}</p>
-            <p class="text-xs text-gray-500 truncate mt-0.5">${escapeHtml(svc.url)}</p>
+      <!-- Formulário de adição -->
+      <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 mb-6">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Adicionar Serviço</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <input id="input-name" type="text" placeholder="Nome do serviço"
+            class="input-base" />
+          <input id="input-url" type="url" placeholder="https://exemplo.com"
+            class="input-base" />
+          <input id="input-tags" type="text" placeholder="Tags (ex: api,prod)"
+            class="input-base" />
+          <div class="flex gap-2">
+            <input id="input-interval" type="number" placeholder="Intervalo (s)" value="60" min="10"
+              class="input-base flex-1" />
+            <input id="input-expected" type="number" placeholder="Status esperado" value="200"
+              class="input-base w-32" />
           </div>
-          <div class="flex items-center gap-2 shrink-0">
-            <span class="text-xs px-2 py-1 rounded-md ${svc.is_active ? 'bg-emerald-900 text-emerald-400' : 'bg-gray-800 text-gray-500'}">
+        </div>
+        <div class="flex items-center gap-3">
+          <button id="btn-add"
+            class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap">
+            Adicionar
+          </button>
+          <p id="form-error" class="hidden text-xs text-red-400"></p>
+        </div>
+      </div>
+
+      <!-- Lista de serviços -->
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Serviços Monitorados</h2>
+      <div id="services-list" class="flex flex-col gap-3">
+        <div class="text-center py-10 text-gray-600"><p class="text-3xl mb-2">⏳</p><p class="text-sm">Carregando...</p></div>
+      </div>
+    </div>
+
+    <!-- ── TAB: Webhooks ──────────────────────────────────────────── -->
+    <div id="tab-content-webhooks" class="hidden">
+
+      <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 mb-6">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Adicionar Webhook</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <input id="wh-url" type="url" placeholder="https://hooks.slack.com/..."
+            class="input-base sm:col-span-2" />
+          <select id="wh-service" class="input-base">
+            <option value="">Global (todos os serviços)</option>
+          </select>
+          <div class="flex items-center gap-6">
+            <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+              <input type="checkbox" id="wh-on-down" checked class="rounded" /> Ao cair
+            </label>
+            <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+              <input type="checkbox" id="wh-on-recover" checked class="rounded" /> Ao recuperar
+            </label>
+          </div>
+        </div>
+        <button id="btn-add-webhook"
+          class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50">
+          Adicionar Webhook
+        </button>
+      </div>
+
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Webhooks Configurados</h2>
+      <div id="webhooks-list" class="flex flex-col gap-3">
+        <div class="text-center py-10 text-gray-600"><p class="text-sm">Carregando...</p></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Modal edição -->
+  <div id="edit-modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-40 px-4">
+    <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-md">
+      <h3 class="font-semibold mb-4">Editar Serviço</h3>
+      <input type="hidden" id="edit-id" />
+      <div class="flex flex-col gap-3">
+        <input id="edit-name" type="text" placeholder="Nome" class="input-base" />
+        <input id="edit-url" type="url" placeholder="URL" class="input-base" />
+        <input id="edit-tags" type="text" placeholder="Tags (csv)" class="input-base" />
+        <div class="flex gap-2">
+          <input id="edit-interval" type="number" placeholder="Intervalo (s)" min="10" class="input-base flex-1" />
+          <input id="edit-expected" type="number" placeholder="Status esperado" class="input-base w-36" />
+        </div>
+      </div>
+      <div class="flex gap-3 justify-end mt-5">
+        <button onclick="closeEditModal()" class="text-sm text-gray-400 hover:text-white px-4 py-2 rounded-lg transition-colors">Cancelar</button>
+        <button id="btn-save-edit" class="text-sm bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg transition-colors">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal exclusão -->
+  <div id="delete-modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-40 px-4">
+    <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-sm">
+      <h3 class="font-semibold mb-2">Remover serviço</h3>
+      <p class="text-sm text-gray-400 mb-6">Remover <span id="del-name" class="text-white font-medium"></span>? O histórico também será apagado.</p>
+      <div class="flex gap-3 justify-end">
+        <button onclick="closeDeleteModal()" class="text-sm text-gray-400 hover:text-white px-4 py-2 rounded-lg transition-colors">Cancelar</button>
+        <button id="btn-confirm-delete" class="text-sm bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg transition-colors">Remover</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="hidden fixed bottom-6 right-6 rounded-xl px-5 py-3 text-sm shadow-xl z-50 border"></div>
+
+  <style>
+    .input-base {
+      @apply bg-gray-800 border border-gray-600 rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors w-full;
+    }
+    .tab-btn { color: #6b7280; border-color: transparent; }
+    .tab-btn.active { color: #e5e7eb; border-color: #6366f1; }
+  </style>
+
+  <script>
+    const API = '/api'
+    const ADMIN = '/api/admin'
+
+    // ── Auth ──────────────────────────────────────────────────────────
+    const token = localStorage.getItem('cs_token')
+    if (!token) window.location.replace('/login.html')
+
+    function authHeaders() {
+      return { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+    }
+
+    document.getElementById('btn-logout').addEventListener('click', () => {
+      localStorage.removeItem('cs_token')
+      window.location.replace('/login.html')
+    })
+
+    // ── Tabs ──────────────────────────────────────────────────────────
+    function showTab(tab) {
+      ['services', 'webhooks'].forEach(t => {
+        document.getElementById(`tab-content-${t}`).classList.toggle('hidden', t !== tab)
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab)
+      })
+      if (tab === 'webhooks') loadWebhooks()
+    }
+    showTab('services')
+
+    // ── Toast ─────────────────────────────────────────────────────────
+    function showToast(msg, type = 'success') {
+      const el = document.getElementById('toast')
+      el.textContent = msg
+      el.className = `fixed bottom-6 right-6 rounded-xl px-5 py-3 text-sm shadow-xl z-50 border ${
+        type === 'success' ? 'bg-emerald-950 border-emerald-700 text-emerald-300' : 'bg-red-950 border-red-800 text-red-300'}`
+      el.classList.remove('hidden')
+      setTimeout(() => el.classList.add('hidden'), 3000)
+    }
+
+    // ── Utils ─────────────────────────────────────────────────────────
+    function escapeHtml(str) {
+      return String(str ?? '').replace(/[&<>"']/g, c =>
+        ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+    }
+
+    async function apiCall(url, options = {}) {
+      const res = await fetch(url, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } })
+      if (res.status === 401) { localStorage.removeItem('cs_token'); window.location.replace('/login.html') }
+      return res
+    }
+
+    // ── Listar serviços ───────────────────────────────────────────────
+    async function loadServices() {
+      try {
+        const res = await apiCall(`${ADMIN}/services`)
+        const services = await res.json()
+        renderServices(services)
+        // populate webhook service selector
+        const sel = document.getElementById('wh-service')
+        const current = sel.value
+        sel.innerHTML = '<option value="">Global (todos os serviços)</option>'
+        services.forEach(s => {
+          const opt = document.createElement('option')
+          opt.value = s.id
+          opt.textContent = s.name
+          if (String(s.id) === current) opt.selected = true
+          sel.appendChild(opt)
+        })
+      } catch {
+        document.getElementById('services-list').innerHTML =
+          '<div class="text-center py-10 text-red-500 text-sm">Erro ao carregar.</div>'
+      }
+    }
+
+    function renderServices(services) {
+      const list = document.getElementById('services-list')
+      if (!services.length) {
+        list.innerHTML = '<div class="text-center py-10 text-gray-600"><p class="text-3xl mb-2">📡</p><p class="text-sm">Nenhum serviço cadastrado.</p></div>'
+        return
+      }
+      list.innerHTML = services.map(svc => `
+        <div class="bg-gray-900 border ${svc.is_active ? 'border-gray-700' : 'border-gray-800'} rounded-xl px-5 py-4 flex items-center gap-4">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <p class="font-medium text-sm ${svc.is_active ? '' : 'text-gray-500'}">${escapeHtml(svc.name)}</p>
+              ${svc.tags ? svc.tags.split(',').map(t => `<span class="text-xs bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded">${escapeHtml(t.trim())}</span>`).join('') : ''}
+            </div>
+            <p class="text-xs text-gray-500 truncate mt-0.5">${escapeHtml(svc.url)}</p>
+            <p class="text-xs text-gray-600 mt-0.5">Intervalo: ${svc.check_interval}s · HTTP ${svc.expected_status_code}</p>
+          </div>
+          <div class="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+            <span class="text-xs px-2 py-1 rounded ${svc.is_active ? 'bg-emerald-900 text-emerald-400' : 'bg-gray-800 text-gray-500'}">
               ${svc.is_active ? 'Ativo' : 'Inativo'}
             </span>
-            <button
-              onclick="confirmDelete(${svc.id}, '${escapeHtml(svc.name)}')"
-              class="text-xs text-gray-600 hover:text-red-400 transition-colors px-2 py-1 rounded-md hover:bg-red-950"
+            <button onclick="manualCheck(${svc.id}, '${escapeHtml(svc.name)}')"
+              title="Checar agora"
+              class="text-xs text-gray-500 hover:text-indigo-400 px-2 py-1 rounded hover:bg-indigo-950 transition-colors">⚡</button>
+            <button onclick="openEditModal(${JSON.stringify(svc).replace(/"/g, '&quot;')})"
+              title="Editar"
+              class="text-xs text-gray-500 hover:text-white px-2 py-1 rounded hover:bg-gray-800 transition-colors">✏️</button>
+            <button onclick="toggleService(${svc.id})"
+              title="${svc.is_active ? 'Desativar' : 'Ativar'}"
+              class="text-xs text-gray-500 hover:text-yellow-400 px-2 py-1 rounded hover:bg-yellow-950 transition-colors">${svc.is_active ? '⏸' : '▶️'}</button>
+            <button onclick="confirmDelete(${svc.id}, '${escapeHtml(svc.name)}')"
               title="Remover"
-            >✕</button>
+              class="text-xs text-gray-500 hover:text-red-400 px-2 py-1 rounded hover:bg-red-950 transition-colors">✕</button>
           </div>
-        </div>`
-            ).join('')
+        </div>`).join('')
+    }
+
+    // ── Adicionar serviço ─────────────────────────────────────────────
+    document.getElementById('btn-add').addEventListener('click', async () => {
+      const name = document.getElementById('input-name').value.trim()
+      const url = document.getElementById('input-url').value.trim()
+      const tags = document.getElementById('input-tags').value.trim() || null
+      const check_interval = parseInt(document.getElementById('input-interval').value) || 60
+      const expected_status_code = parseInt(document.getElementById('input-expected').value) || 200
+      const err = document.getElementById('form-error')
+
+      if (!name || !url) {
+        err.textContent = 'Preencha nome e URL.'
+        err.classList.remove('hidden')
+        return
+      }
+      err.classList.add('hidden')
+      document.getElementById('btn-add').disabled = true
+      try {
+        const res = await apiCall(`${ADMIN}/services`, {
+          method: 'POST',
+          body: JSON.stringify({ name, url, tags, check_interval, expected_status_code }),
+        })
+        if (res.status === 201) {
+          ['input-name','input-url','input-tags'].forEach(id => document.getElementById(id).value = '')
+          showToast(`✓ "${name}" adicionado`)
+          await loadServices()
+        } else {
+          showToast('Erro ao adicionar.', 'error')
         }
+      } catch { showToast('Erro de conexão.', 'error') }
+      finally { document.getElementById('btn-add').disabled = false }
+    })
 
-        // ─── Adicionar serviço ───────────────────────────────────────
-        document.getElementById('btn-add').addEventListener('click', async () => {
-            const name = document.getElementById('input-name').value.trim()
-            const url = document.getElementById('input-url').value.trim()
-            const err = document.getElementById('form-error')
+    // ── Checar agora ──────────────────────────────────────────────────
+    async function manualCheck(id, name) {
+      try {
+        const res = await apiCall(`${ADMIN}/services/${id}/check`, { method: 'POST' })
+        const data = await res.json()
+        showToast(`${name}: ${data.is_up ? '✓ Operacional' : '✗ Indisponível'} (${data.response_ms}ms)`)
+      } catch { showToast('Erro ao checar.', 'error') }
+    }
 
-            if (!name || !url) {
-                err.textContent = 'Preencha o nome e a URL.'
-                err.classList.remove('hidden')
-                return
-            }
+    // ── Toggle ativo ──────────────────────────────────────────────────
+    async function toggleService(id) {
+      try {
+        const res = await apiCall(`${ADMIN}/services/${id}/toggle`, { method: 'POST' })
+        const data = await res.json()
+        showToast(data.is_active ? 'Serviço ativado.' : 'Serviço desativado.')
+        await loadServices()
+      } catch { showToast('Erro ao alternar estado.', 'error') }
+    }
 
-            err.classList.add('hidden')
-            document.getElementById('btn-add').disabled = true
+    // ── Editar serviço ────────────────────────────────────────────────
+    function openEditModal(svc) {
+      document.getElementById('edit-id').value = svc.id
+      document.getElementById('edit-name').value = svc.name
+      document.getElementById('edit-url').value = svc.url
+      document.getElementById('edit-tags').value = svc.tags || ''
+      document.getElementById('edit-interval').value = svc.check_interval
+      document.getElementById('edit-expected').value = svc.expected_status_code
+      document.getElementById('edit-modal').classList.remove('hidden')
+    }
+    function closeEditModal() { document.getElementById('edit-modal').classList.add('hidden') }
 
-            try {
-                const res = await fetch(
-                    `${API}/services?name=${encodeURIComponent(name)}&url=${encodeURIComponent(url)}`,
-                    { method: 'POST', headers: authHeaders() }
-                )
+    document.getElementById('btn-save-edit').addEventListener('click', async () => {
+      const id = document.getElementById('edit-id').value
+      const body = {
+        name: document.getElementById('edit-name').value.trim(),
+        url: document.getElementById('edit-url').value.trim(),
+        tags: document.getElementById('edit-tags').value.trim() || null,
+        check_interval: parseInt(document.getElementById('edit-interval').value),
+        expected_status_code: parseInt(document.getElementById('edit-expected').value),
+      }
+      try {
+        const res = await apiCall(`${ADMIN}/services/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+        if (res.ok) {
+          closeEditModal()
+          showToast('Serviço atualizado.')
+          await loadServices()
+        } else { showToast('Erro ao salvar.', 'error') }
+      } catch { showToast('Erro de conexão.', 'error') }
+    })
 
-                if (res.status === 201) {
-                    document.getElementById('input-name').value = ''
-                    document.getElementById('input-url').value = ''
-                    showToast(`✓ "${name}" adicionado com sucesso`)
-                    await loadServices()
-                } else {
-                    showToast('Erro ao adicionar serviço.', 'error')
-                }
-            } catch (e) {
-                showToast('Erro de conexão.', 'error')
-            } finally {
-                document.getElementById('btn-add').disabled = false
-            }
-        })
+    // ── Remover serviço ───────────────────────────────────────────────
+    let deleteTarget = null
+    function confirmDelete(id, name) {
+      deleteTarget = id
+      document.getElementById('del-name').textContent = name
+      document.getElementById('delete-modal').classList.remove('hidden')
+    }
+    function closeDeleteModal() {
+      document.getElementById('delete-modal').classList.add('hidden')
+      deleteTarget = null
+    }
+    document.getElementById('btn-confirm-delete').addEventListener('click', async () => {
+      if (!deleteTarget) return
+      closeDeleteModal()
+      try {
+        const res = await apiCall(`${ADMIN}/services/${deleteTarget}`, { method: 'DELETE' })
+        if (res.status === 204) { showToast('Serviço removido.'); await loadServices() }
+        else showToast('Erro ao remover.', 'error')
+      } catch { showToast('Erro de conexão.', 'error') }
+      finally { deleteTarget = null }
+    })
 
-        // Enter no campo URL dispara o botão
-        document.getElementById('input-url').addEventListener('keydown', e => {
-            if (e.key === 'Enter') document.getElementById('btn-add').click()
-        })
-
-        // ─── Remover serviço ─────────────────────────────────────────
-        function confirmDelete(id, name) {
-            deleteTarget = id
-            document.getElementById('modal-service-name').textContent = name
-            document.getElementById('modal').classList.remove('hidden')
+    // ── Webhooks ──────────────────────────────────────────────────────
+    async function loadWebhooks() {
+      try {
+        const res = await apiCall(`${ADMIN}/webhooks`)
+        const webhooks = await res.json()
+        const list = document.getElementById('webhooks-list')
+        if (!webhooks.length) {
+          list.innerHTML = '<div class="text-center py-10 text-gray-600 text-sm">Nenhum webhook configurado.</div>'
+          return
         }
+        list.innerHTML = webhooks.map(wh => `
+          <div class="bg-gray-900 border border-gray-700 rounded-xl px-5 py-4 flex items-center gap-4">
+            <div class="min-w-0 flex-1">
+              <p class="text-sm text-gray-300 truncate">${escapeHtml(wh.url)}</p>
+              <p class="text-xs text-gray-600 mt-0.5">
+                ${wh.service_id ? `Serviço #${wh.service_id}` : 'Global'} ·
+                ${[wh.on_down ? 'ao cair' : '', wh.on_recover ? 'ao recuperar' : ''].filter(Boolean).join(', ')}
+              </p>
+            </div>
+            <button onclick="deleteWebhook(${wh.id})"
+              class="text-xs text-gray-500 hover:text-red-400 px-2 py-1 rounded hover:bg-red-950 transition-colors shrink-0">✕</button>
+          </div>`).join('')
+      } catch { showToast('Erro ao carregar webhooks.', 'error') }
+    }
 
-        document.getElementById('modal-cancel').addEventListener('click', () => {
-            document.getElementById('modal').classList.add('hidden')
-            deleteTarget = null
+    document.getElementById('btn-add-webhook').addEventListener('click', async () => {
+      const url = document.getElementById('wh-url').value.trim()
+      const service_id = document.getElementById('wh-service').value || null
+      const on_down = document.getElementById('wh-on-down').checked
+      const on_recover = document.getElementById('wh-on-recover').checked
+      if (!url) { showToast('Informe a URL do webhook.', 'error'); return }
+      try {
+        const res = await apiCall(`${ADMIN}/webhooks`, {
+          method: 'POST',
+          body: JSON.stringify({ url, service_id: service_id ? parseInt(service_id) : null, on_down, on_recover }),
         })
+        if (res.status === 201) {
+          document.getElementById('wh-url').value = ''
+          showToast('Webhook adicionado.')
+          await loadWebhooks()
+        } else showToast('Erro ao adicionar webhook.', 'error')
+      } catch { showToast('Erro de conexão.', 'error') }
+    })
 
-        document.getElementById('modal-confirm').addEventListener('click', async () => {
-            if (!deleteTarget) return
-            document.getElementById('modal').classList.add('hidden')
+    async function deleteWebhook(id) {
+      try {
+        const res = await apiCall(`${ADMIN}/webhooks/${id}`, { method: 'DELETE' })
+        if (res.status === 204) { showToast('Webhook removido.'); await loadWebhooks() }
+        else showToast('Erro ao remover.', 'error')
+      } catch { showToast('Erro de conexão.', 'error') }
+    }
 
-            try {
-                const res = await fetch(`${API}/services/${deleteTarget}`, {
-                    method: 'DELETE',
-                    headers: authHeaders()
-                })
-
-                if (res.status === 204) {
-                    showToast('Serviço removido.')
-                    await loadServices()
-                } else {
-                    showToast('Erro ao remover.', 'error')
-                }
-            } catch (e) {
-                showToast('Erro de conexão.', 'error')
-            } finally {
-                deleteTarget = null
-            }
-        })
-
-        // ─── Utils ───────────────────────────────────────────────────
-        function escapeHtml(str) {
-            return String(str).replace(/[&<>"']/g, c =>
-                ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
-        }
-
-        // ─── Init ────────────────────────────────────────────────────
-        credentials = getCredentials()
-        if (credentials) loadServices()
-    </script>
+    // ── Init ──────────────────────────────────────────────────────────
+    loadServices()
+  </script>
 </body>
-
 </html>

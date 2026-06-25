@@ -1,4 +1,4 @@
-# Env files — NUNCA versionar
+# Env files
 .env
 *.env
 
@@ -16,3 +16,7 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+#Claude files
+.claude
+CLAUDE.md

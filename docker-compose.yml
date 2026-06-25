@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
 
   db:
@@ -68,18 +66,20 @@ services:
       - "80"
     networks:
       - cloudstatus_net
-
+ 
   nginx:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: nginx/Dockerfile
     container_name: cloudstatus_nginx
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "8000:80"
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/nginx-health"]
       interval: 15s
